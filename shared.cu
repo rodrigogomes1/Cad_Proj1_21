@@ -88,15 +88,13 @@ void printImg(int imgh, int imgw, const int *img) {
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
 __global__ void averageImg(int*out, int*img, int width, int height,int radius) {
-    int tileW = blockDim.x-2*radius;
-    int tileH = blockDim.y-2*radius;
 
     __shared__ int red[BLOCK_W*BLOCK_H];
     __shared__ int green[BLOCK_W*BLOCK_H];
     __shared__ int blue[BLOCK_W*BLOCK_H];
     int r=0,g=0,b=0;
-    int x = blockIdx.x*tileW+ threadIdx.x - radius;
-    int y = blockIdx.y*tileH+ threadIdx.y - radius;
+    int x = blockIdx.x*TILE_W+ threadIdx.x - radius;
+    int y = blockIdx.y*TILE_H+ threadIdx.y - radius;
 
     x= max(0,x);
     x= min(x,width-1);
