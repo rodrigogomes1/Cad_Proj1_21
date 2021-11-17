@@ -17,6 +17,7 @@
 #include "vsize.h"
 
 
+
 /* read_ppm - read a PPM image ascii file
  *   returns pointer to data, dimensions and max colors (from PPM header)
  *   data format: sequence of width x height of 3 ints for R,G and B
@@ -86,77 +87,46 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int*out, int*img, int width, int height) {
-    __shared__ int red[blockDim.x+2)*(blockDim.y+2)];
-    __shared__ int green[blockDim.x+2)*(blockDim.y+2)];
-    __shared__ int blue[blockDim.x+2)*(blockDim.y+2)];
-    int r=0,g=0,b=0, n=0;
-    int x = blockIdx.x*blockDim.x+threadIdx.x;
-    int y = blockIdx.y*blockDim.y+threadIdx.y;
+__global__ void averageImg(int*out, int*img, int width, int height,int radius) {
+    int tileW = blockDim.x-2*radius;
+    int tileH = blockDim.y-2*radius;
 
+    __shared__ int red[BLOCK_W*BLOCK_H];
+    __shared__ int green[BLOCK_W*BLOCK_H];
+    __shared__ int blue[BLOCK_W*BLOCK_H];
+    int r=0,g=0,b=0;
+    int x = blockIdx.x*tileW+ threadIdx.x - radius;
+    int y = blockIdx.y*tileH+ threadIdx.y - radius;
 
+    x= max(0,x);
+    x= min(x,width-1);
+    y=max(y,0);
+    y=min(y,height-1);
 
-    //int lindex=threadIdx.x+(blockDim.x*threadIdx.y);
-    int lindex = (threadIdx.x+1)+((blockDim.x+2)*(threadIdx.y+1))
-    int idx = 3*(y*width+x);
-    red[lindex] = img[idx];
-    green[lindex] = img[idx+1];
-    blue[lindex] = img[idx+2];
+    unsigned int index = 3*(y* width +x);
+    unsigned int bindex= threadIdx.y*blockDim.y+threadIdx.x;
 
-    if(threadIdx.x==0){
-        //esuerda
-           if(x==0){
-               red[lindex-1]=img[idx];
-               green[lindex-1]=img[idx+1];
-               blue[lindex-1]=img[idx+2];
-           }else{
-               red[lindex-1]=img[idx-3];
-               green[lindex-1]=img[idx-2];
-               blue[lindex-1]=img[idx-1];
-           }
-         //esquerda cima
-         //TODO CHECKAR CANTO ESQUERDO, COMPUTAR PIXEL EM CIMA DO BLOCO ANTERIOR, E COMPUTAR LOCAL INDEX DO PIXEL ACIMA NA MEMORIA PARTILHADA
-
-         if(threadIdx.y==0){
-             int globalabove = (blockIdx.y-1)*blockDim.y+threadIdx.y;
-             int above = (blockIdx.y)*blockDim.y+threadIdx.y;
-             if(y==0){
-                 red[threadIdx.x+1]=img[idx];
-                 green[threadIdx.x+1]=img[idx+1];
-                 blue[threadIdx.x+1]=img[idx+2];
-                 red[threadIdx.x]=img[idx];
-                 green[threadIdx.x]=img[idx+1];
-                 blue[threadIdx.x]=img[idx+2];
-             }else{
-                 red[threadIdx.x+1]=img[globalabove];
-                 green[threadIdx.x+1]=img[globalabove+1];
-                 blue[threadIdx.x+1]=img[globalabove+2];
-                 red[threadIdx.x]=img[globalabove];
-                 green[threadIdx.x]=img[globalabove+1];
-                 blue[threadIdx.x]=img[globalabove+2];
-             }
-         }
-
-
-    }
-
+    red[bindex]=img[index];
+    green[bindex]=img[index+1];
+    blue[bindex]=img[index+2];
 
     __syncthreads();
-    //unsigned int idx = threadIdx.x + blockIdx.x * blockDim.x
-    //unsigned int idy = threadIdx.y + blockIdx.y * blockDim.y
 
-    for (int l=y-1; l<y+2 && l<height; l++)
-        for (int c=x-1; c<x+2 && c<width; c++)
-            if (l>=0 && c>=0 ) {
-                int idx = (l*width+c);
-                r+=red[idx]; g+=green[idx]; b+=blue[idx];
-                n++;
+    if( (threadIdx.x >= radius) && (threadIdx.x < (blockDim.x-radius)
+        && (threadIdx.y >= radius) && (threadIdx.y < (blockDim.x-radius)))){
+        int n=0;
+        for (int dy=-radius; dy<=radius; dy++){
+            for (int dx=-radius; dx<=radius;dx++ ){
+                    int idx = bindex + (dy*blockDim.x) + dx;
+                    r+=red[idx]; g+=green[idx]; b+=blue[idx];
+                    n++;
             }
-    int idx = 3*(y*width+x);
-    out[idx]=r/n;
-    out[idx+1]=g/n;
-    out[idx+2]=b/n;
+        }
 
+        out[index]=r/n;
+        out[index+1]=g/n;
+        out[index+2]=b/n;
+    }
 }
 
 
@@ -196,10 +166,10 @@ int main(int argc, char *argv[]) {
 
 
     clock_t t = clock();
-    dim3 nb(imgw/8,imgh/8);
-    dim3 th(8,8);
+    dim3 nb(imgw/BLOCK_W,imgh/BLOCK_H);
+    dim3 th(BLOCK_W,BLOCK_H);
 
-    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh);
+    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1);
     
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
     t = clock()-t;
