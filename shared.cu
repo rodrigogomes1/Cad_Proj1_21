@@ -102,6 +102,8 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius) {
     y=min(y,height-1);
 
     unsigned int index = 3*(y* width +x);
+    //TODO Verficar qual dos dois é correto
+    unsigned int bindex= threadIdx.y*blockDim.x+threadIdx.x;
     unsigned int bindex= threadIdx.y*blockDim.y+threadIdx.x;
 
     red[bindex]=img[index];
