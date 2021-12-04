@@ -87,7 +87,7 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int*out, int*img, int width, int height,int radius) {
+__global__ void averageImg(int*out, int*img, int width, int height,int radius,int* filter) {
 
     __shared__ int red[BLOCK_W*BLOCK_H];
     __shared__ int green[BLOCK_W*BLOCK_H];
@@ -113,14 +113,30 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius) {
     if( (threadIdx.x >= radius) && (threadIdx.x < (blockDim.x-radius)
         && (threadIdx.y >= radius) && (threadIdx.y < (blockDim.x-radius)))){
         int n=0;
+        int f_pos=0;
         for (int dy=-radius; dy<=radius; dy++){
             for (int dx=-radius; dx<=radius;dx++ ){
                     int idx = bindex + (dy*blockDim.x) + dx;
-                    r+=red[idx]; g+=green[idx]; b+=blue[idx];
-                    n++;
+                    int scale = filter[f_pos];
+                    r+=red[idx]*scale;
+                    g+=green[idx]*scale;
+                    b+=blue[idx]*scale;
+                    n=n+scale;
+                    f_pos=f_pos+1;
             }
         }
-
+        if(n==0){
+            n=1;
+        }
+        if(r<0){
+            r=0;
+        }
+        if(b<0){
+            b=0;
+        }
+        if(g<0){
+            g=0;
+        }
         out[index]=r/n;
         out[index+1]=g/n;
         out[index+2]=b/n;
@@ -160,15 +176,20 @@ int main(int argc, char *argv[]) {
     }
     cudaMemcpy(d_in,img, (imgh*imgw*3)*sizeof(int),cudaMemcpyHostToDevice);
 
+    int filter[3][3] = {{-1, -1, -1},  // gaussian filter
+                        {-1, 8, -1},
+                        {-1, -1, -1}};
 
-
+    int *d_filter;
+    cudaMalloc(&d_filter, (3*3)*sizeof(int));
+    cudaMemcpy(d_filter,filter, (3*3)*sizeof(int),cudaMemcpyHostToDevice);
 
     clock_t t = clock();
-    dim3 nb(imgw/BLOCK_W,imgh/BLOCK_H);
+    dim3 nb(imgw+(BLOCK_W-1)/BLOCK_W,imgh+(BLOCK_H-1)/BLOCK_H);
     dim3 th(BLOCK_W,BLOCK_H);
 
-    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1);
-    
+    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter);
+
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
     t = clock()-t;
     printf("time %f ms\n", t/(double)(CLOCKS_PER_SEC/1000));
