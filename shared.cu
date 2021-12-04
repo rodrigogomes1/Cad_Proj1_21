@@ -87,7 +87,7 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int*out, int*img, int width, int height,int radius,int* filter) {
+__global__ void averageImg(int*out, int*img, int width, int height,int radius,int* filter,float alpha) {
 
     __shared__ int red[BLOCK_W*BLOCK_H];
     __shared__ int green[BLOCK_W*BLOCK_H];
@@ -104,7 +104,6 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
     unsigned int index = 3*(y* width +x);
     //TODO Verficar qual dos dois é correto
     unsigned int bindex= threadIdx.y*blockDim.x+threadIdx.x;
-    unsigned int bindex= threadIdx.y*blockDim.y+threadIdx.x;
 
     red[bindex]=img[index];
     green[bindex]=img[index+1];
@@ -139,9 +138,13 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
         if(g<0){
             g=0;
         }
-        out[index]=r/n;
-        out[index+1]=g/n;
-        out[index+2]=b/n;
+        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+        r=r/n;
+        g=g/n;
+        b=b/n;
+        out[index]=(1-alpha)*r+grey;
+        out[index+1]=(1-alpha)*g+grey;
+        out[index+2]=(1-alpha)*b+grey;
     }
 }
 
@@ -150,9 +153,18 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
 int main(int argc, char *argv[]) {
     int imgh, imgw, imgc;
     int *img;
-    if (argc!=2) {
-        fprintf(stderr,"usage: %s img.ppm\n", argv[0]);
+    float alpha = 0.5;
+
+    if (argc!=2 && argc!=3) {
+        fprintf(stderr, "usage: %s img.ppm [alpha]\n", argv[0]);
         return EXIT_FAILURE;
+    }
+    if (argc==3) {
+        alpha = atof(argv[2]);
+        if(alpha>1)
+            alpha=1;
+        if(alpha<0)
+            alpha=0;
     }
     FILE *f=fopen(argv[1],"r");
     if (f==NULL) {
@@ -190,7 +202,7 @@ int main(int argc, char *argv[]) {
     dim3 nb(imgw+(BLOCK_W-1)/BLOCK_W,imgh+(BLOCK_H-1)/BLOCK_H);
     dim3 th(BLOCK_W,BLOCK_H);
 
-    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter);
+    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter,alpha);
 
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
     t = clock()-t;
