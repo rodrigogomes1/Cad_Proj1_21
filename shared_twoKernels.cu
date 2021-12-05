@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
     
 
     // printImg(imgh, imgw, out);
-    FILE *g=fopen("out.ppm", "w");
+    FILE *g=fopen("out_Kernels.ppm", "w");
     write_ppm(g, out, imgw, imgh, imgc);
     fclose(g);
     

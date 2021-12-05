@@ -8,8 +8,6 @@
 #include <time.h>
 #include <ctype.h>
 #include <string.h>
-#include <math.h>
-
 
 /* read_ppm - read a PPM image ascii file
  *   returns pointer to data, dimensions and max colors (from PPM header)
@@ -159,7 +157,7 @@ int main(int argc, char *argv[]) {
     printf("time %f ms\n", t/(double)(CLOCKS_PER_SEC/1000));
 
     // printImg(imgw, imgh, out);
-    FILE *g=fopen("out.ppm", "w");
+    FILE *g=fopen("outMain.ppm", "w");
     write_ppm(g, out, imgw, imgh, imgc);
     fclose(g);
     return EXIT_SUCCESS;

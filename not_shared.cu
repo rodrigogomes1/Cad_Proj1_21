@@ -174,9 +174,15 @@ int main(int argc, char *argv[]) {
     }
     cudaMemcpy(d_in,img, (imgh*imgw*3)*sizeof(int),cudaMemcpyHostToDevice);
 
+    /*
     int filter[3][3] = {{-1, -1, -1},  // gaussian filter
                         {-1, 8, -1},
                         {-1, -1, -1}};
+    */
+
+    int filter[3][3] = {{1, 2, 1},  // gaussian filter
+                        {2, 4, 2},
+                        {1, 2, 1}};
 
     int *d_filter;
     cudaMalloc(&d_filter, (3*3)*sizeof(int));
@@ -194,7 +200,7 @@ int main(int argc, char *argv[]) {
     
 
     // printImg(imgh, imgw, out);
-    FILE *g=fopen("out.ppm", "w");
+    FILE *g=fopen("outNotShared.ppm", "w");
     write_ppm(g, out, imgw, imgh, imgc);
     fclose(g);
     
