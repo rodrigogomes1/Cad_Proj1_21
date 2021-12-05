@@ -87,7 +87,7 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int*out, int*img, int width, int height,int radius,int* filter,float alpha) {
+__global__ void averageImgFilter(int*out, int*img, int width, int height,int radius,int* filter) {
 
     __shared__ int red[BLOCK_W*BLOCK_H];
     __shared__ int green[BLOCK_W*BLOCK_H];
@@ -138,15 +138,34 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
         if(g<0){
             g=0;
         }
-        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+
         r=r/n;
         g=g/n;
         b=b/n;
-        out[index]=(1-alpha)*r+grey;
-        out[index+1]=(1-alpha)*g+grey;
-        out[index+2]=(1-alpha)*b+grey;
+        out[index]=r;
+        out[index+1]=g;
+        out[index+2]=b;
     }
 }
+
+__global__ void averageImgGray(int*out, int*img, int width, int height,float alpha) {
+    int r=0,g=0,b=0;
+    int x = blockIdx.x*blockDim.x+threadIdx.x;
+    int y = blockIdx.y*blockDim.y+threadIdx.y;
+
+    unsigned int index = 3*(y* width +x);
+
+    r= img[index];
+    g= img[index+1];
+    b= img[index+2];
+
+    int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+    out[index]=(1-alpha)*r+grey;
+    out[index+1]=(1-alpha)*g+grey;
+    out[index+2]=(1-alpha)*b+grey;
+}
+
+
 
 
 
@@ -202,9 +221,15 @@ int main(int argc, char *argv[]) {
     dim3 nb(imgw+(BLOCK_W-1)/BLOCK_W,imgh+(BLOCK_H-1)/BLOCK_H);
     dim3 th(BLOCK_W,BLOCK_H);
 
-    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter,alpha);
+    averageImgFilter<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter);
 
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
+    cudaFree(d_filter);
+
+    averageImgGray<<<nb, th>>>(d_out,out, imgw, imgh,alpha);
+
+    cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
+
     t = clock()-t;
     printf("time %f ms\n", t/(double)(CLOCKS_PER_SEC/1000));
     
@@ -215,7 +240,6 @@ int main(int argc, char *argv[]) {
     fclose(g);
     
     cudaFree(d_in);
-    cudaFree(d_filter);
     cudaFree(d_out);
     
     return EXIT_SUCCESS;

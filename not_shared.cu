@@ -87,65 +87,49 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int*out, int*img, int width, int height,int radius,int* filter,float alpha) {
+__global__ void averageImg(int*out, int*img, int width, int height,int* filter,float alpha) {
 
-    __shared__ int red[BLOCK_W*BLOCK_H];
-    __shared__ int green[BLOCK_W*BLOCK_H];
-    __shared__ int blue[BLOCK_W*BLOCK_H];
     int r=0,g=0,b=0;
-    int x = blockIdx.x*TILE_W+ threadIdx.x - radius;
-    int y = blockIdx.y*TILE_H+ threadIdx.y - radius;
+    int x = blockIdx.x*blockDim.x+threadIdx.x;
+    int y = blockIdx.y*blockDim.y+threadIdx.y;
 
-    x= max(0,x);
-    x= min(x,width-1);
-    y=max(y,0);
-    y=min(y,height-1);
-
-    unsigned int index = 3*(y* width +x);
-    //TODO Verficar qual dos dois é correto
-    unsigned int bindex= threadIdx.y*blockDim.x+threadIdx.x;
-
-    red[bindex]=img[index];
-    green[bindex]=img[index+1];
-    blue[bindex]=img[index+2];
-
-    __syncthreads();
-
-    if( (threadIdx.x >= radius) && (threadIdx.x < (blockDim.x-radius)
-        && (threadIdx.y >= radius) && (threadIdx.y < (blockDim.x-radius)))){
-        int n=0;
-        int f_pos=0;
-        for (int dy=-radius; dy<=radius; dy++){
-            for (int dx=-radius; dx<=radius;dx++ ){
-                    int idx = bindex + (dy*blockDim.x) + dx;
-                    int scale = filter[f_pos];
-                    r+=red[idx]*scale;
-                    g+=green[idx]*scale;
-                    b+=blue[idx]*scale;
-                    n=n+scale;
-                    f_pos=f_pos+1;
+    int n=0;
+    int f_pos=0;
+    for (int l=y-1; l<y+2 && l<height; l++){
+        for (int c=x-1; c<x+2 && c<width; c++) {
+            if (l >= 0 && c >= 0) {
+                int idx = 3 * (l * width + c);
+                int scale = filter[f_pos];
+                r += img[idx] * scale;
+                g += img[idx + 1] * scale;
+                b += img[idx + 2] * scale;
+                n = n + scale;
+                f_pos = f_pos + 1;
             }
         }
-        if(n==0){
-            n=1;
-        }
-        if(r<0){
-            r=0;
-        }
-        if(b<0){
-            b=0;
-        }
-        if(g<0){
-            g=0;
-        }
-        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
-        r=r/n;
-        g=g/n;
-        b=b/n;
-        out[index]=(1-alpha)*r+grey;
-        out[index+1]=(1-alpha)*g+grey;
-        out[index+2]=(1-alpha)*b+grey;
     }
+
+    if(n==0){
+        n=1;
+    }
+    if(r<0){
+        r=0;
+    }
+    if(b<0){
+        b=0;
+    }
+    if(g<0){
+        g=0;
+    }
+
+    int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+    r=r/n;
+    g=g/n;
+    b=b/n;
+    int idx = 3*(y*width+x);
+    out[idx]=(1-alpha)*r+grey;
+    out[idx+1]=(1-alpha)*g+grey;
+    out[idx+2]=(1-alpha)*b+grey;
 }
 
 
@@ -202,7 +186,7 @@ int main(int argc, char *argv[]) {
     dim3 nb(imgw+(BLOCK_W-1)/BLOCK_W,imgh+(BLOCK_H-1)/BLOCK_H);
     dim3 th(BLOCK_W,BLOCK_H);
 
-    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter,alpha);
+    averageImg<<<nb, th>>>(d_out,d_in, imgw, imgh,d_filter,alpha);
 
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
     t = clock()-t;
@@ -215,8 +199,8 @@ int main(int argc, char *argv[]) {
     fclose(g);
     
     cudaFree(d_in);
-    cudaFree(d_filter);
     cudaFree(d_out);
+    cudaFree(d_filter);
     
     return EXIT_SUCCESS;
 }
