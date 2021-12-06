@@ -148,25 +148,25 @@ __global__ void averageImgFilter(int*out, int*img, int width, int height,int rad
     }
 }
 
-__global__ void averageImgGray(int*out, int*img, int width, int height,float alpha) {
+__global__ void averageImgGray(int*out,int*img, int width, int height,float alpha) {
+
     int r=0,g=0,b=0;
     int x = blockIdx.x*blockDim.x+threadIdx.x;
     int y = blockIdx.y*blockDim.y+threadIdx.y;
 
-    unsigned int index = 3*(y* width +x);
+    if (x < width && y < height) {
+        unsigned int index = 3 * (y * width + x);
 
-    r= img[index];
-    g= img[index+1];
-    b= img[index+2];
+        r = img[index];
+        g = img[index + 1];
+        b = img[index + 2];
 
-    int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
-    out[index]=(1-alpha)*r+grey;
-    out[index+1]=(1-alpha)*g+grey;
-    out[index+2]=(1-alpha)*b+grey;
+        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+        out[index] = (1 - alpha) * r + grey;
+        out[index + 1] = (1 - alpha) * g + grey;
+        out[index + 2] = (1 - alpha) * b + grey;
+    }
 }
-
-
-
 
 
 int main(int argc, char *argv[]) {
@@ -208,10 +208,14 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
     cudaMemcpy(d_in,img, (imgh*imgw*3)*sizeof(int),cudaMemcpyHostToDevice);
-
+    /*
     int filter[3][3] = {{-1, -1, -1},  // gaussian filter
                         {-1, 8, -1},
                         {-1, -1, -1}};
+    */
+    int filter[3][3] = {{1, 2, 1},  // gaussian filter
+                        {2, 4, 2},
+                        {1, 2, 1}};
 
     int *d_filter;
     cudaMalloc(&d_filter, (3*3)*sizeof(int));
@@ -221,12 +225,14 @@ int main(int argc, char *argv[]) {
     dim3 nb(imgw+(BLOCK_W-1)/BLOCK_W,imgh+(BLOCK_H-1)/BLOCK_H);
     dim3 th(BLOCK_W,BLOCK_H);
 
+
     averageImgFilter<<<nb, th>>>(d_out,d_in, imgw, imgh,1,d_filter);
 
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
-    cudaFree(d_filter);
 
-    averageImgGray<<<nb, th>>>(d_out,out, imgw, imgh,alpha);
+    cudaMemcpy(d_in, out, (imgh*imgw*3)*sizeof(int),cudaMemcpyHostToDevice);
+
+    averageImgGray<<<nb, th>>>(d_out,d_in, imgw, imgh,alpha);
 
     cudaMemcpy(out, d_out, (imgh*imgw*3)*sizeof(int),cudaMemcpyDeviceToHost);
 
@@ -235,10 +241,11 @@ int main(int argc, char *argv[]) {
     
 
     // printImg(imgh, imgw, out);
-    FILE *g=fopen("out_Kernels.ppm", "w");
+    FILE *g=fopen("outKernels.ppm", "w");
     write_ppm(g, out, imgw, imgh, imgc);
     fclose(g);
-    
+
+    cudaFree(d_filter);
     cudaFree(d_in);
     cudaFree(d_out);
     

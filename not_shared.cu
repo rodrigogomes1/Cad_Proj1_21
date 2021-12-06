@@ -93,43 +93,46 @@ __global__ void averageImg(int*out, int*img, int width, int height,int* filter,f
     int x = blockIdx.x*blockDim.x+threadIdx.x;
     int y = blockIdx.y*blockDim.y+threadIdx.y;
 
-    int n=0;
-    int f_pos=0;
-    for (int l=y-1; l<y+2 && l<height; l++){
-        for (int c=x-1; c<x+2 && c<width; c++) {
-            if (l >= 0 && c >= 0) {
-                int idx = 3 * (l * width + c);
-                int scale = filter[f_pos];
-                r += img[idx] * scale;
-                g += img[idx + 1] * scale;
-                b += img[idx + 2] * scale;
-                n = n + scale;
-                f_pos = f_pos + 1;
+    if (x < width && y < height) {
+        int n=0;
+        int f_pos=0;
+        for (int l=y-1; l<y+2 && l<height; l++){
+            for (int c=x-1; c<x+2 && c<width; c++) {
+                if (l >= 0 && c >= 0) {
+                    int idx = 3 * (l * width + c);
+                    int scale = filter[f_pos];
+                    r += img[idx] * scale;
+                    g += img[idx + 1] * scale;
+                    b += img[idx + 2] * scale;
+                    n = n + scale;
+                    f_pos = f_pos + 1;
+                }
             }
         }
-    }
 
-    if(n==0){
-        n=1;
-    }
-    if(r<0){
-        r=0;
-    }
-    if(b<0){
-        b=0;
-    }
-    if(g<0){
-        g=0;
-    }
+        if(n==0){
+            n=1;
+        }
+        if(r<0){
+            r=0;
+        }
+        if(b<0){
+            b=0;
+        }
+        if(g<0){
+            g=0;
+        }
 
-    int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
-    r=r/n;
-    g=g/n;
-    b=b/n;
-    int idx = 3*(y*width+x);
-    out[idx]=(1-alpha)*r+grey;
-    out[idx+1]=(1-alpha)*g+grey;
-    out[idx+2]=(1-alpha)*b+grey;
+        r=r/n;
+        g=g/n;
+        b=b/n;
+        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+
+        int idx = 3*(y*width+x);
+        out[idx]=(1-alpha)*r+grey;
+        out[idx+1]=(1-alpha)*g+grey;
+        out[idx+2]=(1-alpha)*b+grey;
+    }
 }
 
 
