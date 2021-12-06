@@ -161,7 +161,7 @@ __global__ void averageImgGray(int*out,int*img, int width, int height,float alph
         g = img[index + 1];
         b = img[index + 2];
 
-        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+        float grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
         out[index] = (1 - alpha) * r + grey;
         out[index + 1] = (1 - alpha) * g + grey;
         out[index + 2] = (1 - alpha) * b + grey;

@@ -102,7 +102,7 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
     y=min(y,height-1);
 
     unsigned int index = 3*(y* width +x);
-    
+
     unsigned int bindex= threadIdx.y*blockDim.x+threadIdx.x;
 
     red[bindex]=img[index];
@@ -143,7 +143,7 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
         r=r/n;
         g=g/n;
         b=b/n;
-        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+        float grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
 
         out[index]=(1-alpha)*r+grey;
         out[index+1]=(1-alpha)*g+grey;

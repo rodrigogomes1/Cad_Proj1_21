@@ -126,7 +126,7 @@ __global__ void averageImg(int*out, int*img, int width, int height,int* filter,f
         r=r/n;
         g=g/n;
         b=b/n;
-        int grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
+        float grey = alpha * (0.3 * r + 0.59 * g + 0.11 * b);
 
         int idx = 3*(y*width+x);
         out[idx]=(1-alpha)*r+grey;
