@@ -92,6 +92,7 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
     __shared__ int red[BLOCK_W*BLOCK_H];
     __shared__ int green[BLOCK_W*BLOCK_H];
     __shared__ int blue[BLOCK_W*BLOCK_H];
+    --shared-- int filt[3*3];
     int r=0,g=0,b=0;
     int x = blockIdx.x*TILE_W+ threadIdx.x - radius;
     int y = blockIdx.y*TILE_H+ threadIdx.y - radius;
@@ -108,6 +109,9 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
     red[bindex]=img[index];
     green[bindex]=img[index+1];
     blue[bindex]=img[index+2];
+    if(bindex>=0 & bindex<=9){
+        filt[bindex]=filter[bindex]
+    }
 
     __syncthreads();
 
@@ -118,7 +122,7 @@ __global__ void averageImg(int*out, int*img, int width, int height,int radius,in
         for (int dy=-radius; dy<=radius; dy++){
             for (int dx=-radius; dx<=radius;dx++ ){
                     int idx = bindex + (dy*blockDim.x) + dx;
-                    int scale = filter[f_pos];
+                    int scale = filt[f_pos];
                     r+=red[idx]*scale;
                     g+=green[idx]*scale;
                     b+=blue[idx]*scale;
