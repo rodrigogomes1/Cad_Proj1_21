@@ -228,15 +228,17 @@ int main(int argc, char *argv[]) {
 
         //adicionar linha de cima para o filtro
 
-        /*
-        if (offset!=0){
-            offset=offset-line;
+
+        if (offset==0){
             streamBytes+=line;
-        }*/
+        }else{
+            offset=offset+(imgw * 3 );//+linha
+        }
+
         //adicionar linha de baixo para o filtro
-        /*if (offset+streamBytes < line*imgh){
-            streamBytes+=line;
-        }*/
+        if (lineSum>=imgh){
+            streamBytes-=line;
+        }
         printf("offset = %d\n", offset );
         printf("fill = %d\n", fill[i] );
         printf("StreamBytes = %d\n", streamBytes );
@@ -248,16 +250,15 @@ int main(int argc, char *argv[]) {
         averageImg<<<nb, th, 0, streams[i]>>>(d_out, d_in, lineSum ,startLine , imgw, imgh, d_filter, alpha);
 
 
-        if (offset==0){
-            cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes,cudaMemcpyDeviceToHost, streams[i]);
-        }else{
-            //TODO Refazer condição
-            if (offset+streamBytes == line*imgh){
-                //cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
-            } else{
-                cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
+        if (offset!=0){
+                offset=offset-(imgw * 3 );
+        }
+        if(lineSum<imgh){
+            if (offset==0){
+                streamBytes=streamBytes-line;
             }
         }
+        cudaMemcpyAsync(&out[startLine*(imgw*3)], &d_out[startLine*(imgw*3)], (lineSum-startLine)*imgw*3*sizeof(int) ,cudaMemcpyDeviceToHost, streams[i]);
 
     }
 
