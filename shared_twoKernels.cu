@@ -102,7 +102,6 @@ __global__ void averageImgFilter(int*out, int*img, int width, int height,int rad
     y=min(y,height-1);
 
     unsigned int index = 3*(y* width +x);
-    //TODO Verficar qual dos dois é correto
     unsigned int bindex= threadIdx.y*blockDim.x+threadIdx.x;
 
     red[bindex]=img[index];
@@ -112,7 +111,7 @@ __global__ void averageImgFilter(int*out, int*img, int width, int height,int rad
     __syncthreads();
 
     if( (threadIdx.x >= radius) && (threadIdx.x < (blockDim.x-radius)
-        && (threadIdx.y >= radius) && (threadIdx.y < (blockDim.x-radius)))){
+        && (threadIdx.y >= radius) && (threadIdx.y < (blockDim.y-radius)))){
         int n=0;
         int f_pos=0;
         for (int dy=-radius; dy<=radius; dy++){
@@ -207,6 +206,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr,"No GPU mem!\n");
         return EXIT_FAILURE;
     }
+
+    clock_t t = clock();
     cudaMemcpy(d_in,img, (imgh*imgw*3)*sizeof(int),cudaMemcpyHostToDevice);
     /*
     int filter[3][3] = {{-1, -1, -1},  // gaussian filter
@@ -221,7 +222,7 @@ int main(int argc, char *argv[]) {
     cudaMalloc(&d_filter, (3*3)*sizeof(int));
     cudaMemcpy(d_filter,filter, (3*3)*sizeof(int),cudaMemcpyHostToDevice);
 
-    clock_t t = clock();
+
     dim3 nb(imgw+(BLOCK_W-1)/BLOCK_W,imgh+(BLOCK_H-1)/BLOCK_H);
     dim3 th(BLOCK_W,BLOCK_H);
 
