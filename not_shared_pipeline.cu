@@ -92,13 +92,12 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int *out, int *img,int lineSum,int streamBytes,int line, int width, int height, int *filter, float alpha) {
+__global__ void averageImg(int *out, int *img,int lineSum,int line, int width, int height, int *filter, float alpha) {
 
     int r = 0, g = 0, b = 0;
 
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y + line;
-
 
     if (x < width && y < lineSum) {
         int n = 0;
@@ -222,36 +221,41 @@ int main(int argc, char *argv[]) {
     int line = imgw * 3 * sizeof(int);
     for (int i = 0; i < NUM_STREAMS; i++) {
         int streamBytes = fill[i]*line;
-        int offset = line * lineSum;
-
+        int offset = line * (lineSum) / sizeof(int);
+        int startLine = lineSum;
         lineSum+=fill[i];
+
 
         //adicionar linha de cima para o filtro
 
+        /*
         if (offset!=0){
             offset=offset-line;
             streamBytes+=line;
-        }
+        }*/
         //adicionar linha de baixo para o filtro
-        if (offset+streamBytes < line*imgh){
+        /*if (offset+streamBytes < line*imgh){
             streamBytes+=line;
-        }
-        printf("lineSum = %d\n", lineSum );
-        printf("lineSum-fill[i] = %d\n", lineSum-fill[i] );
+        }*/
+        printf("offset = %d\n", offset );
+        printf("fill = %d\n", fill[i] );
+        printf("StreamBytes = %d\n", streamBytes );
         cudaMemcpyAsync(&d_in[offset], &img[offset], streamBytes, cudaMemcpyHostToDevice, streams[i]);
 
         dim3 nb(imgw + (BLOCK_W - 1) / BLOCK_W, (fill[i]) + (BLOCK_H - 1) / BLOCK_H);
         dim3 th(BLOCK_W, BLOCK_H);
 
-        averageImg<<<nb, th, 0, streams[i]>>>(d_out, d_in, lineSum,streamBytes ,lineSum-fill[i] , imgw, imgh, d_filter, alpha);
+        averageImg<<<nb, th, 0, streams[i]>>>(d_out, d_in, lineSum ,startLine , imgw, imgh, d_filter, alpha);
+
 
         if (offset==0){
-            cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes-line,cudaMemcpyDeviceToHost, streams[i]);
+            cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes,cudaMemcpyDeviceToHost, streams[i]);
         }else{
+            //TODO Refazer condição
             if (offset+streamBytes == line*imgh){
-                cudaMemcpyAsync(&out[offset+line], &d_out[offset+line], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
+                //cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
             } else{
-                cudaMemcpyAsync(&out[offset+line], &d_out[offset+line], streamBytes-line, cudaMemcpyDeviceToHost, streams[i]);
+                cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
             }
         }
 
@@ -271,10 +275,11 @@ int main(int argc, char *argv[]) {
     write_ppm(g, out, imgw, imgh, imgc);
     fclose(g);
 
+    /*
     cudaFree(d_in);
     cudaFree(d_out);
     cudaFree(d_filter);
-
+*/
     return EXIT_SUCCESS;
 }
 
