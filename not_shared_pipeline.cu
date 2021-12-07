@@ -46,6 +46,7 @@ void read_ppm(FILE *f, int **img, int *width, int *height, int *maxcolors) {
                 break;
             case 3:
                 count += fscanf(f, "%d", maxcolors);
+
         }
     }
     assert(c != EOF);
@@ -91,11 +92,13 @@ void printImg(int imgh, int imgw, const int *img) {
 
 /* averageImg - do the average of one point (line,col) with its 8 neighbours
  */
-__global__ void averageImg(int *out, int *img,int lineSum,int streamBytes, int width, int height, int *filter, float alpha) {
+__global__ void averageImg(int *out, int *img,int lineSum,int streamBytes,int line, int width, int height, int *filter, float alpha) {
 
     int r = 0, g = 0, b = 0;
+
     int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int y = blockIdx.y * blockDim.y + threadIdx.y + line;
+
 
     if (x < width && y < lineSum) {
         int n = 0;
@@ -139,7 +142,7 @@ __global__ void averageImg(int *out, int *img,int lineSum,int streamBytes, int w
     }
 }
 int * split(int nstreams, int height){
-    int res[nstreams];
+    int *res= (int*)malloc((nstreams) * sizeof(int));
     if (height % nstreams == 0) {
         for (int i = 0; i < nstreams; i++)
             res[i]=height/nstreams;
@@ -208,19 +211,23 @@ int main(int argc, char *argv[]) {
     //---------------------------------------
 
     cudaStream_t streams[NUM_STREAMS];
-    for (int i = 0; i < NUM_STREAMS; ++i) { cudaStreamCreate(&streams[i]); }
+    for (int i = 0; i < NUM_STREAMS; i++) {
+        cudaStreamCreate(&streams[i]);
+    }
 
-    int *fill= split(NUM_STREAMS,imgh);
+
+    int *fill=split(NUM_STREAMS,imgh);
 
     int lineSum=0;
     int line = imgw * 3 * sizeof(int);
-    for (int i = 0; i < NUM_STREAMS; ++i) {
+    for (int i = 0; i < NUM_STREAMS; i++) {
         int streamBytes = fill[i]*line;
-        int offset = (line) * lineSum;
+        int offset = line * lineSum;
+
         lineSum+=fill[i];
 
-
         //adicionar linha de cima para o filtro
+
         if (offset!=0){
             offset=offset-line;
             streamBytes+=line;
@@ -229,30 +236,28 @@ int main(int argc, char *argv[]) {
         if (offset+streamBytes < line*imgh){
             streamBytes+=line;
         }
-
-        cudaMemcpyAsync(&d_in[offset], &img[offset], streamBytes,cudaMemcpyHostToDevice, streams[i]);
+        printf("lineSum = %d\n", lineSum );
+        printf("lineSum-fill[i] = %d\n", lineSum-fill[i] );
+        cudaMemcpyAsync(&d_in[offset], &img[offset], streamBytes, cudaMemcpyHostToDevice, streams[i]);
 
         dim3 nb(imgw + (BLOCK_W - 1) / BLOCK_W, (fill[i]) + (BLOCK_H - 1) / BLOCK_H);
         dim3 th(BLOCK_W, BLOCK_H);
 
-        averageImg<<<nb, th, 0, streams[i]>>>(d_out, d_in, lineSum,streamBytes ,imgw, imgh, d_filter, alpha);
+        averageImg<<<nb, th, 0, streams[i]>>>(d_out, d_in, lineSum,streamBytes ,lineSum-fill[i] , imgw, imgh, d_filter, alpha);
 
         if (offset==0){
-            cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes-line,
-                            cudaMemcpyDeviceToHost, streams[i]);
+            cudaMemcpyAsync(&out[offset], &d_out[offset], streamBytes-line,cudaMemcpyDeviceToHost, streams[i]);
         }else{
             if (offset+streamBytes == line*imgh){
-                cudaMemcpyAsync(&out[offset+line], &d_out[offset+line], streamBytes),
-                        cudaMemcpyDeviceToHost, streams[i]);
+                cudaMemcpyAsync(&out[offset+line], &d_out[offset+line], streamBytes, cudaMemcpyDeviceToHost, streams[i]);
             } else{
-                cudaMemcpyAsync(&out[offset+line], &d_out[offset+line], streamBytes-line),
-                        cudaMemcpyDeviceToHost, streams[i]);
+                cudaMemcpyAsync(&out[offset+line], &d_out[offset+line], streamBytes-line, cudaMemcpyDeviceToHost, streams[i]);
             }
         }
 
     }
 
-    for (int i = 0; i < NUM_STREAMS; ++i) {
+    for (int i = 0; i < NUM_STREAMS; i++) {
         cudaStreamSynchronize(streams[i]);
         cudaStreamDestroy(streams[i]);
     }
@@ -262,7 +267,7 @@ int main(int argc, char *argv[]) {
 
 
     // printImg(imgh, imgw, out);
-    FILE *g = fopen("outNotShared.ppm", "w");
+    FILE *g = fopen("outPipeline.ppm", "w");
     write_ppm(g, out, imgw, imgh, imgc);
     fclose(g);
 

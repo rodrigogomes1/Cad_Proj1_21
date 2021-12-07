@@ -14,6 +14,7 @@
 #define S (D*D)
 #define BLOCK_W 8
 #define BLOCK_H 8
+#define NUM_STREAMS 2
 
 // when using threads use this thread group size by default
 #define GROUPSIZE 1024

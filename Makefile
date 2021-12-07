@@ -21,6 +21,9 @@ notshared: not_shared.cu
 kernels: shared_twoKernels.cu
 	nvcc -o cuda2Kernels shared_twoKernels.cu
 
+pipeline: not_shared_pipeline.cu
+	nvcc -o cudaPipeline not_shared_pipeline.cu
+
 #gcc main.c -o main
 
 
